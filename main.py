@@ -48,6 +48,10 @@ def callback():
             "client_secret": CLIENT_SECRET,
         },
     )
+
+    if res.status_code != 200:
+        abort(res.status_code, res.json()["error_description"])
+
     response.set_cookie(
         "access_token",
         res.json()["access_token"],
