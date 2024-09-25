@@ -1,8 +1,8 @@
 import requests
 from bottle import abort, redirect, request, response, route, run, template
 
-CLIENT_ID = "f2bccd65b6854b1887da52a94f358f7b"
-CLIENT_SECRET = "176dc471fec24c02b7261e409e37c92e"
+CLIENT_ID = ""  # Your Spotify Client ID
+CLIENT_SECRET = ""  # Your Spotify Client Secret
 SCOPE = "user-library-read user-library-modify playlist-read-private playlist-modify-private playlist-modify-public"
 REDIRECT_URI = "http://localhost:8080/callback"
 BASE_URL = "https://api.spotify.com/v1"
