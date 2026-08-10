@@ -11,15 +11,23 @@ This is a simple tool to help you clean up your Spotify account. You can use it 
   - In the app settings, add `http://127.0.0.1:8080/callback` as a Redirect URI. 
   - Use Web API as scope. 
 - Copy the Client ID and Client Secret and set them as environment variables (see [Configuration](#configuration) below)
-- Install dependencies (uses [Poetry](https://python-poetry.org/))
+- Install dependencies, either with [Poetry](https://python-poetry.org/) (uses the checked-in `poetry.lock`):
 
-```
-python3 -m venv .venv
-source .venv/bin/activate
-pip install bottle requests
-```
+  ```bash
+  poetry install
+  ```
 
-- Run `main.py`
+  or with a plain virtual environment:
+
+  ```bash
+  python3 -m venv .venv
+  source .venv/bin/activate   # on Windows: .venv\Scripts\activate
+  pip install bottle requests
+  ```
+
+  A virtual environment keeps these dependencies local to this project instead of installing them system-wide, so you don't need admin rights and won't clash with other Python projects. It only needs to be created once — in new terminal sessions, just run the `source`/`activate` line again before working on the project. Run `deactivate` to leave it.
+
+- Run `main.py` (with Poetry: `poetry run python main.py`)
 
 ## Configuration
 App settings (scopes, redirect URI, API base URL, batch limits) live in [`config.py`](./config.py), not `main.py`. `config.py` contains no secrets itself — it reads your Spotify credentials from environment variables at startup and exits with an error if they're missing:
