@@ -17,6 +17,13 @@
   </header>
 
   <div class="container">
+    % if defined('deleted_count') and deleted_count:
+    <div class="row">
+      <div class="col-sm-12">
+        <p class="label success">{{deleted_count}} item(s) deleted.</p>
+      </div>
+    </div>
+    % end
     <div class="row">
       <div class="col-sm-4">
         <p>
@@ -40,6 +47,7 @@
           </a>
           <a href='/get-playlists'>Get Playlists</a>
           <a href='/get-podcasts'>Get Podcasts</a>
+          <a href='/get-episodes'>Get Episodes</a>
         </nav>
       </div>
       <div class="col-sm-8">

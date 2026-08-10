@@ -1,19 +1,24 @@
 import requests
 from bottle import abort, redirect, request, response, route, run, template
 
-CLIENT_ID = ""  # Your Spotify Client ID
-CLIENT_SECRET = ""  # Your Spotify Client Secret
-SCOPE = "user-library-read user-library-modify playlist-read-private playlist-modify-private playlist-modify-public"
-REDIRECT_URI = "http://localhost:8080/callback"
-BASE_URL = "https://api.spotify.com/v1"
+from config import (
+    BASE_URL,
+    CLIENT_ID,
+    CLIENT_SECRET,
+    LIBRARY_ITEMS_LIMIT,
+    REDIRECT_URI,
+    RESPONSE_ITEMS_LIMIT,
+    TEMPLATE_AUTH_KWARGS,
+    URI_TYPE,
+)
 
-RESPONSE_ITEMS_LIMIT = 50  # Number of items to fetch per request. MIN: 0, MAX: 50
 
-TEMPLATE_AUTH_KWARGS = {
-    "CLIENT_ID": CLIENT_ID,
-    "REDIRECT_URI": REDIRECT_URI,
-    "SCOPE": SCOPE,
-}
+def _abort_with_api_error(res):
+    try:
+        message = res.json()["error"]["message"]
+    except (ValueError, KeyError):
+        message = res.text or res.reason
+    abort(res.status_code, message)
 
 
 def _get_access_token():
@@ -24,12 +29,16 @@ def _get_access_token():
     return access_token
 
 
+def _render_home(**kwargs):
+    deleted = request.query.deleted
+    if deleted:
+        kwargs["deleted_count"] = int(deleted)
+    return template("home", **kwargs, **TEMPLATE_AUTH_KWARGS)
+
+
 @route("/")
 def main():
-    return template(
-        "home",
-        **TEMPLATE_AUTH_KWARGS,
-    )
+    return _render_home()
 
 
 @route("/callback")
@@ -50,7 +59,11 @@ def callback():
     )
 
     if res.status_code != 200:
-        abort(res.status_code, res.json()["error_description"])
+        try:
+            message = res.json()["error_description"]
+        except (ValueError, KeyError):
+            message = res.text or res.reason
+        abort(res.status_code, message)
 
     response.set_cookie(
         "access_token",
@@ -79,7 +92,7 @@ def _get_items(access_token, item_type, offset, items=None):
     )
 
     if res.status_code != 200:
-        abort(res.status_code, res.json()["error"]["message"])
+        _abort_with_api_error(res)
 
     if items is None:
         items = res.json()["items"]
@@ -105,11 +118,7 @@ def get_liked_songs():
         0,
     )
 
-    return template(
-        "home",
-        tracks=tracks,
-        **TEMPLATE_AUTH_KWARGS,
-    )
+    return _render_home(tracks=tracks)
 
 
 @route("/get-saved-albums")
@@ -121,11 +130,7 @@ def get_saved_albums():
         0,
     )
 
-    return template(
-        "home",
-        albums=albums,
-        **TEMPLATE_AUTH_KWARGS,
-    )
+    return _render_home(albums=albums)
 
 
 @route("/get-playlists")
@@ -137,11 +142,7 @@ def get_playlists():
         0,
     )
 
-    return template(
-        "home",
-        playlists=playlists,
-        **TEMPLATE_AUTH_KWARGS,
-    )
+    return _render_home(playlists=playlists)
 
 
 @route("/get-podcasts")
@@ -153,40 +154,43 @@ def get_podcasts():
         0,
     )
 
-    return template(
-        "home",
-        shows=shows,
-        **TEMPLATE_AUTH_KWARGS,
+    return _render_home(shows=shows)
+
+
+@route("/get-episodes")
+def get_episodes():
+    access_token = _get_access_token()
+    episodes = _get_items(
+        access_token,
+        "episodes",
+        0,
     )
+
+    return _render_home(episodes=episodes)
 
 
 @route("/delete", method="POST")
 def delete():
     access_token = _get_access_token()
     item_type = request.query.item_type
-    ids = request.forms.dict.get(item_type)
+    ids = [id for id in request.forms.dict.get(item_type, []) if id]
 
-    if item_type == "playlists":
-        for id in ids:
-            requests.delete(
-                f"{BASE_URL}/playlists/{id}/followers",
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-    else:
-        if len(ids) > 50:
-            for i in range(0, len(ids), 50):
-                requests.delete(
-                    f"{BASE_URL}/me/{item_type}?ids={','.join(ids[i:i+50])}",
-                    headers={"Authorization": f"Bearer {access_token}"},
-                )
-        else:
-            requests.delete(
-                f"{BASE_URL}/me/{item_type}?ids={','.join(ids)}",
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
+    if not ids:
+        abort(400, "Error: no items selected")
 
-    redirect(f"/{request.query.redirect_to}")
+    uri_type = URI_TYPE[item_type]
+    for i in range(0, len(ids), LIBRARY_ITEMS_LIMIT):
+        uris = [f"spotify:{uri_type}:{id}" for id in ids[i : i + LIBRARY_ITEMS_LIMIT]]
+        res = requests.delete(
+            f"{BASE_URL}/me/library",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"uris": ",".join(uris)},
+        )
+        if res.status_code != 200:
+            _abort_with_api_error(res)
+
+    redirect(f"/{request.query.redirect_to}?deleted={len(ids)}")
 
 
 if __name__ == "__main__":
-    run(host="localhost", port=8080, debug=True, reloader=True)
+    run(host="127.0.0.1", port=8080, debug=True, reloader=True)
